@@ -11,6 +11,7 @@ A portfolio-grade e-commerce REST API built as a **modular monolith** with Java 
 - Spring Security 7 / JWT (HS256)
 - Spring Data JPA / Hibernate
 - PostgreSQL 17 / Flyway
+- Redis 7 / Spring Data Redis (atomic distributed rate limiting)
 - Bean Validation
 - Springdoc OpenAPI / Swagger UI
 - Maven, Docker, Docker Compose, GitHub Actions
@@ -78,7 +79,7 @@ A portfolio-grade e-commerce REST API built as a **modular monolith** with Java 
 - HTTP requests emit an `X-Request-Id`; Logstash JSON logs include the request correlation ID via MDC
 - Parallel checkout test verifies two customers cannot buy the last inventory unit
 - Security integration tests verify unauthenticated and wrong-role access is rejected
-- Fixed-window IP rate limiting on registration/login, checkout and payment creation
+- Atomic Redis-backed fixed-window IP rate limiting on registration/login, checkout and payment creation; Caffeine memory mode remains available for single-instance runs
 - Actuator health, liveness, readiness and metrics endpoints
 
 ## Run with Docker Compose
@@ -126,7 +127,7 @@ With Java 21, Maven and a working Docker Engine available:
 mvn clean verify
 ```
 
-Testcontainers starts an isolated PostgreSQL 17 container for the full application integration tests. Docker is required for the complete test suite. Unit tests cover authentication, product catalogue, cart operations, checkout idempotency, inventory reservation, order expiration, payment outcomes and rate limiting.
+Testcontainers starts isolated PostgreSQL 17 and Redis 7 containers for the full application integration tests. Docker is required for the complete test suite. Unit tests cover authentication, product catalogue, cart operations, checkout idempotency, inventory reservation, order expiration, payment outcomes and rate limiting.
 
 ## Docker Compose smoke test
 
@@ -220,12 +221,12 @@ For a simulated decline, use `"scenario": "DECLINE"` and a new idempotency key. 
 
 ## Rate limiting
 
-The in-memory fixed-window limiter applies per remote IP address:
+The fixed-window limiter applies per remote IP address:
 - Authentication endpoints: 20 POST requests per minute
 - Checkout: 10 POST requests per minute
 - Payment creation: 10 POST requests per minute
 
-A rejected request returns HTTP `429` and a `Retry-After` header. Configure `RATE_LIMIT_ENABLED=false` to disable it or override `app.rate-limit.*` settings. This limiter is local to one application instance. For multi-instance production deployments, replace it with a shared Redis-backed limiter and configure the trusted reverse proxy so client IP addresses cannot be spoofed.
+A rejected request returns HTTP `429` and a `Retry-After` header. Docker Compose uses Redis 7 and an atomic Lua `INCR`/`PEXPIRE` script, so separate API instances share the same fixed-window counter. Configure `RATE_LIMIT_BACKEND=redis` for distributed deployments or `RATE_LIMIT_BACKEND=memory` for a single-instance process. `RATE_LIMIT_ENABLED=false` disables the limiter. Keep Redis on a private network, configure authentication/TLS in managed production Redis, and configure the trusted reverse proxy so client IP addresses cannot be spoofed. Redis unavailability fails closed with HTTP `503` rather than bypassing the limit.
 
 ## Database migrations
 

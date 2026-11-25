@@ -6,6 +6,11 @@ logging:
 spring:
   application:
     name: ecommerce-backend-api
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5433/ecommerce_db}
     username: ${DB_USERNAME:ecommerce}
@@ -38,6 +43,7 @@ app:
     full-name: ${BOOTSTRAP_ADMIN_FULL_NAME:Store Administrator}
   rate-limit:
     enabled: ${RATE_LIMIT_ENABLED:true}
+    backend: ${RATE_LIMIT_BACKEND:memory}
     window: 1m
     auth-requests: 20
     checkout-requests: 10

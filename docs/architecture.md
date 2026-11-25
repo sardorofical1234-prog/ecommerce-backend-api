@@ -14,7 +14,7 @@ The application is a **modular monolith**, not a collection of prematurely separ
 | `order` | Checkout, immutable order-item snapshots, order state and expiration | Implemented |
 | `inventory` | Stock reservation, release and movement audit trail | Implemented |
 | `payment` | Provider abstraction, payment attempts and simulated provider | Implemented |
-| `operations` | Health probes, metrics and request rate limiting | Implemented |
+| `operations` | Health probes, metrics, request correlation and Redis-backed request rate limiting | Implemented |
 
 ## Cart behavior and invariants
 
@@ -55,10 +55,13 @@ The application is a **modular monolith**, not a collection of prematurely separ
 - A PostgreSQL trigger-based failure-injection test forces the inventory ledger write to fail and verifies the order insert, stock decrement and cart clear all roll back.
 - Payment unit tests cover provider timeout followed by a retry with the exact same idempotency key.
 - Each HTTP request receives a validated or generated `X-Request-Id`; the value is added to MDC and emitted in Logstash JSON logs.
+- Redis integration tests use two independent counter instances against the same Redis container and verify they observe one shared atomic window.
 - A concurrency test runs two independent customer checkouts against one remaining unit. Exactly one transaction may reserve it.
-- The fixed-window limiter uses a bounded Caffeine cache and keys request counters by remote IP plus endpoint group.
+- The default Compose deployment uses a Redis fixed-window counter with one atomic Lua script (`INCR` + `PEXPIRE`) keyed by remote IP and endpoint group.
+- A Caffeine-backed in-memory counter remains available for a single-instance process.
 - Authentication, checkout and payment creation are rate limited; read-only catalogue/order routes are not.
-- The limiter is process-local. Multiple instances need a shared Redis implementation.
+- Redis counters are shared by multiple application instances; each increment and TTL initialization is atomic.
+- Redis is private to the Compose network. In production, use managed Redis with authentication/TLS. Redis failure is fail-closed and returns HTTP 503.
 - Actuator exposes health, liveness, readiness and metrics endpoints. Only health probe endpoints are public; metrics remain authenticated.
 - Console output uses Spring Boot's Logstash structured JSON format, which includes MDC correlation fields.
 

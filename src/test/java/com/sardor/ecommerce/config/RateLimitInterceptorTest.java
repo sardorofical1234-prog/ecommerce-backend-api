@@ -14,7 +14,7 @@ class RateLimitInterceptorTest {
 
     @Test
     void rejectsRequestsAfterTheConfiguredWindowLimit() throws Exception {
-        RateLimitInterceptor interceptor = new RateLimitInterceptor(true, Duration.ofSeconds(30), 2, 2, 2);
+        RateLimitInterceptor interceptor = new RateLimitInterceptor(new InMemoryRateLimitCounter(), true, Duration.ofSeconds(30), 2, 2, 2);
 
         MockHttpServletRequest firstRequest = request();
         MockHttpServletResponse firstResponse = new MockHttpServletResponse();
@@ -36,7 +36,7 @@ class RateLimitInterceptorTest {
 
     @Test
     void doesNotLimitReadOnlyRequestsOrUnconfiguredRoutes() throws Exception {
-        RateLimitInterceptor interceptor = new RateLimitInterceptor(true, Duration.ofSeconds(30), 1, 1, 1);
+        RateLimitInterceptor interceptor = new RateLimitInterceptor(new InMemoryRateLimitCounter(), true, Duration.ofSeconds(30), 1, 1, 1);
 
         MockHttpServletRequest healthRequest = new MockHttpServletRequest("GET", "/actuator/health");
         MockHttpServletResponse healthResponse = new MockHttpServletResponse();

@@ -1,7 +1,5 @@
 package com.sardor.ecommerce.config;
 
-import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Value;
@@ -12,21 +10,18 @@ import org.springframework.web.servlet.HandlerInterceptor;
 
 import java.io.IOException;
 import java.time.Duration;
-import java.util.concurrent.TimeUnit;
 
 @Component
 public class RateLimitInterceptor implements HandlerInterceptor {
+    private final RateLimitCounter counter;
     private final boolean enabled;
     private final Duration window;
     private final int authLimit;
     private final int checkoutLimit;
     private final int paymentLimit;
-    private final Cache<String, FixedWindow> buckets = Caffeine.newBuilder()
-            .maximumSize(50_000)
-            .expireAfterAccess(Duration.ofMinutes(3))
-            .build();
 
     public RateLimitInterceptor(
+            RateLimitCounter counter,
             @Value("${app.rate-limit.enabled:true}") boolean enabled,
             @Value("${app.rate-limit.window:1m}") Duration window,
             @Value("${app.rate-limit.auth-requests:20}") int authLimit,
@@ -37,6 +32,7 @@ public class RateLimitInterceptor implements HandlerInterceptor {
                 || authLimit < 1 || checkoutLimit < 1 || paymentLimit < 1) {
             throw new IllegalArgumentException("Rate limit window and limits must be positive");
         }
+        this.counter = counter;
         this.enabled = enabled;
         this.window = window;
         this.authLimit = authLimit;
@@ -56,33 +52,24 @@ public class RateLimitInterceptor implements HandlerInterceptor {
             return true;
         }
 
-        String key = request.getRemoteAddr() + ":" + rateLimitGroup(request);
-        long now = System.nanoTime();
-        FixedWindow bucket = buckets.get(key, ignored -> new FixedWindow(now));
-        synchronized (bucket) {
-            if (now - bucket.windowStartedAtNanos >= window.toNanos()) {
-                bucket.windowStartedAtNanos = now;
-                bucket.requests = 0;
-            }
+        String key = "ecommerce:rate-limit:v1:" + rateLimitGroup(request) + ":" + request.getRemoteAddr();
+        RateLimitCounter.Decision decision = counter.increment(key, window);
+        long requestCount = decision.requestCount();
 
-            if (bucket.requests >= limit) {
-                long remainingNanos = window.toNanos() - (now - bucket.windowStartedAtNanos);
-                long retryAfterSeconds = Math.max(1, TimeUnit.NANOSECONDS.toSeconds(remainingNanos) + 1);
-                response.setStatus(429);
-                response.setHeader(HttpHeaders.RETRY_AFTER, Long.toString(retryAfterSeconds));
-                response.setHeader("X-RateLimit-Limit", Integer.toString(limit));
-                response.setHeader("X-RateLimit-Remaining", "0");
-                response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-                response.getWriter().write("""
-                        {"status":429,"error":"Too Many Requests","message":"Rate limit exceeded. Retry after the indicated interval."}
-                        """.trim());
-                return false;
-            }
-
-            bucket.requests++;
-            response.setHeader("X-RateLimit-Limit", Integer.toString(limit));
-            response.setHeader("X-RateLimit-Remaining", Integer.toString(limit - bucket.requests));
+        response.setHeader("X-RateLimit-Limit", Integer.toString(limit));
+        if (requestCount > limit) {
+            long retryAfterSeconds = Math.max(1, (decision.remainingWindowMillis() + 999) / 1000);
+            response.setStatus(429);
+            response.setHeader(HttpHeaders.RETRY_AFTER, Long.toString(retryAfterSeconds));
+            response.setHeader("X-RateLimit-Remaining", "0");
+            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+            response.getWriter().write("""
+                    {"status":429,"error":"Too Many Requests","message":"Rate limit exceeded. Retry after the indicated interval."}
+                    """.trim());
+            return false;
         }
+
+        response.setHeader("X-RateLimit-Remaining", Long.toString(Math.max(0, limit - requestCount)));
         return true;
     }
 
@@ -112,14 +99,5 @@ public class RateLimitInterceptor implements HandlerInterceptor {
             return "checkout";
         }
         return "payment";
-    }
-
-    private static final class FixedWindow {
-        private long windowStartedAtNanos;
-        private int requests;
-
-        private FixedWindow(long windowStartedAtNanos) {
-            this.windowStartedAtNanos = windowStartedAtNanos;
-        }
     }
 }

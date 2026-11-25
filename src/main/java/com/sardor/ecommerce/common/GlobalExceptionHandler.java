@@ -1,6 +1,7 @@
 package com.sardor.ecommerce.common;
 
 import com.sardor.ecommerce.payment.PaymentProviderException;
+import com.sardor.ecommerce.config.RateLimitStoreUnavailableException;
 
 import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -38,6 +39,12 @@ public class GlobalExceptionHandler {
         exception.getBindingResult().getFieldErrors().forEach(error ->
                 errors.putIfAbsent(error.getField(), error.getDefaultMessage()));
         return response(HttpStatus.BAD_REQUEST, "Request validation failed", errors);
+    }
+
+    @ExceptionHandler(RateLimitStoreUnavailableException.class)
+    public ResponseEntity<ApiError> handleRateLimitStoreUnavailable(RateLimitStoreUnavailableException exception) {
+        return response(HttpStatus.SERVICE_UNAVAILABLE,
+                "Request protection service is temporarily unavailable", Map.of());
     }
 
     @ExceptionHandler(PaymentProviderException.class)

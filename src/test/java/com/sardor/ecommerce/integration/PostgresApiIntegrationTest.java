@@ -7,15 +7,20 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import com.sardor.ecommerce.config.RateLimitCounter;
+import com.sardor.ecommerce.config.RedisRateLimitCounter;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.Base64;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -44,11 +49,18 @@ class PostgresApiIntegrationTest {
             .withUsername("integration")
             .withPassword("integration-password");
 
+    @Container
+    static final GenericContainer<?> REDIS = new GenericContainer<>("redis:7-alpine")
+            .withExposedPorts(6379);
+
     @DynamicPropertySource
     static void databaseProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
         registry.add("spring.datasource.username", POSTGRES::getUsername);
         registry.add("spring.datasource.password", POSTGRES::getPassword);
+        registry.add("spring.data.redis.host", REDIS::getHost);
+        registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379));
+        registry.add("app.rate-limit.backend", () -> "redis");
         registry.add("app.security.jwt.secret-base64", () ->
                 Base64.getEncoder().encodeToString(
                         "integration-test-secret-which-is-exactly-32-bytes".substring(0, 32)
@@ -64,6 +76,21 @@ class PostgresApiIntegrationTest {
     @Autowired MockMvc mockMvc;
     @Autowired ObjectMapper objectMapper;
     @Autowired JdbcTemplate jdbcTemplate;
+    @Autowired StringRedisTemplate redisTemplate;
+    @Autowired RateLimitCounter rateLimitCounter;
+
+    @Test
+    void redisRateLimitCounterSharesAtomicWindowAcrossIndependentInstances() {
+        String key = "integration:" + UUID.randomUUID();
+        Duration window = Duration.ofSeconds(30);
+
+        RateLimitCounter.Decision first = rateLimitCounter.increment(key, window);
+        RateLimitCounter.Decision second = new RedisRateLimitCounter(redisTemplate).increment(key, window);
+
+        assertEquals(1L, first.requestCount());
+        assertEquals(2L, second.requestCount());
+        assertTrue(second.remainingWindowMillis() > 0);
+    }
 
     @Test
     void flywayAppliesAllVersionedMigrationsOnRealPostgres() {

@@ -32,6 +32,7 @@ jobs:
           umask 077
           {
             echo "DB_PASSWORD=$(openssl rand -hex 24)"
+            echo "RATE_LIMIT_BACKEND=redis"
             echo "JWT_SECRET_BASE64=$(openssl rand -base64 32 | tr -d '\n')"
             echo "BOOTSTRAP_ADMIN_ENABLED=true"
             echo "BOOTSTRAP_ADMIN_EMAIL=smoke-admin@example.com"
