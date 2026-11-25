@@ -55,5 +55,5 @@
 - [x] Actuator metrics endpoint
 - [x] Redis-backed atomic fixed-window rate limiting for multi-instance deployments; Caffeine remains available for single-instance mode
 - [x] Logstash JSON structured console logs and validated/generated request correlation IDs
-- [ ] Dashboard and external observability integration
-- [ ] Architecture decision records and deployment guide
+- [ ] Dashboard and external observability integration (requires an external monitoring workspace and scrape credentials)
+- [x] Architecture decision records and provider-neutral deployment guide

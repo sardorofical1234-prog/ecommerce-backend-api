@@ -260,7 +260,9 @@ src/main/java/com/sardor/ecommerce/
 └── user/       # customer/admin identity
 ```
 
-## Architecture and roadmap
+## Architecture, operations and roadmap
 
 - [Architecture and invariants](docs/architecture.md)
+- [Production deployment guide](docs/deployment.md)
+- [Architecture decision records](docs/adr/)
 - [Implementation roadmap](docs/roadmap.md)
