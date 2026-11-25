@@ -13,7 +13,6 @@ spring:
       password: ${REDIS_PASSWORD:}
       ssl:
         enabled: ${REDIS_SSL_ENABLED:false}
-      password: ${REDIS_PASSWORD:}
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5433/ecommerce_db}
     username: ${DB_USERNAME:ecommerce}
