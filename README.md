@@ -2,7 +2,7 @@
 
 A portfolio-grade e-commerce REST API built as a **modular monolith** with Java 21, Spring Boot 4.1.3 and PostgreSQL 17.
 
-> Current scope: customer authentication, product catalogue and customer shopping cart. Checkout, order processing, inventory reservation and payment simulation are tracked in [`docs/roadmap.md`](docs/roadmap.md); they are not implemented yet.
+> Current scope: customer authentication, product catalogue, shopping cart, checkout, order history and inventory reservation. Payment processing is not implemented; orders remain pending payment until cancelled or expired.
 
 ## Technology
 
@@ -46,6 +46,18 @@ A portfolio-grade e-commerce REST API built as a **modular monolith** with Java 
 - JWT subject identifies the customer; client-supplied user IDs are never accepted
 - Customer-row and cart-row pessimistic locks serialize cart creation and updates
 - Cart responses flag lines that are no longer available; adding to a cart does not reserve stock
+
+### Checkout, orders and inventory
+
+- Checkout is atomic: order creation, inventory reservation and cart clearing share one database transaction
+- Required `Idempotency-Key` prevents duplicate orders and duplicate stock deductions on client retries
+- Product rows are pessimistically locked in stable UUID order before stock is reserved
+- Server calculates totals and stores immutable product name, SKU, unit-price and quantity snapshots on order items
+- Inventory reservation and release are recorded in an append-only movement ledger
+- Customers can view their own order history and details
+- Customer cancellation restores stock exactly once
+- Pending orders expire after 30 minutes; a scheduled job releases their reserved stock
+- Order records use `PENDING_PAYMENT`, `CANCELLED` and `EXPIRED` states
 
 ## Run with Docker Compose
 
@@ -92,7 +104,7 @@ With Java 21 and Maven installed:
 mvn clean verify
 ```
 
-The unit suite covers authentication, product-catalogue behavior and cart operations. PostgreSQL integration and concurrency tests are still planned.
+The unit suite covers authentication, product-catalogue behavior, cart operations, checkout idempotency, inventory reservation and order expiration. PostgreSQL integration and concurrency tests are still planned.
 
 ## API overview
 
@@ -110,6 +122,10 @@ The unit suite covers authentication, product-catalogue behavior and cart operat
 | `POST` | `/api/v1/cart/items` | Customer | Add a product / increase quantity |
 | `PUT` | `/api/v1/cart/items/{productId}` | Customer | Set item quantity |
 | `DELETE` | `/api/v1/cart/items/{productId}` | Customer | Remove item |
+| `POST` | `/api/v1/checkout` | Customer | Create order and reserve stock |
+| `GET` | `/api/v1/orders` | Customer | List own recent orders |
+| `GET` | `/api/v1/orders/{orderId}` | Customer | Get own order details |
+| `POST` | `/api/v1/orders/{orderId}/cancel` | Customer | Cancel pending order and release stock |
 
 ### Example: register
 
@@ -132,12 +148,20 @@ Authorization: Bearer <customer-access-token>
 Content-Type: application/json
 
 {
-  "productId": "00000000-0000-0000-0000-000000000000",
+  "productId": "<existing-product-uuid>",
   "quantity": 2
 }
 ```
 
-The product ID must refer to an active product. The server reads the current price and stock; any price or total sent by the client is ignored.
+### Example: checkout
+
+```http
+POST /api/v1/checkout
+Authorization: Bearer <customer-access-token>
+Idempotency-Key: checkout-2026-001
+```
+
+Send a unique key for each distinct checkout attempt. Reuse the same key when retrying the same request after a timeout. The response contains the order ID, status, expiration time, item snapshots and server-calculated total. Stock is reserved immediately; the payment window is 30 minutes.
 
 ### Example: create a product
 
@@ -162,12 +186,16 @@ Use the admin account created by the optional bootstrap process to call admin en
 
 Flyway applies versioned SQL migrations from `src/main/resources/db/migration`. Hibernate is configured with `ddl-auto=validate`; schema changes must be committed as new migrations. Do not edit an already-applied migration in a shared database.
 
-## Security notes
+## Security and consistency notes
 
 - Replace all local passwords and JWT signing material before exposing the service beyond localhost.
 - Never commit `.env` or real secrets.
 - Admin bootstrap is disabled by default and never resets an existing account password.
-- Adding an item to a cart does not reserve inventory. Checkout must revalidate stock and perform an atomic reservation.
+- Stock reservation, order creation, inventory movements and cart clearing execute in one transaction.
+- Checkout locks product rows in a deterministic order to reduce deadlock risk and prevent overselling.
+- Order-item prices are historical snapshots; later product edits do not change an existing order.
+- Inventory is not reserved when items are added to a cart.
+- Expiration currently releases stock after 30 minutes. Payment processing and the `PAID` state will be introduced with the simulated payment module.
 - The payment module will be a simulated provider; this project will not collect or store real card data.
 
 ## Project structure
@@ -178,6 +206,8 @@ src/main/java/com/sardor/ecommerce/
 ├── cart/       # customer shopping carts
 ├── common/     # API errors and domain exceptions
 ├── config/     # OpenAPI and optional bootstrap admin
+├── inventory/  # stock movement audit ledger
+├── order/      # checkout, order history, cancellation, expiration
 ├── product/    # public catalogue and admin product management
 ├── security/   # stateless JWT authentication and authorization
 └── user/       # customer/admin identity

@@ -23,19 +23,24 @@
 
 ## Iteration 3 — Checkout, orders and inventory
 
-- [ ] Checkout transaction and immutable order-item snapshots
-- [ ] Stock reservation with row-level locking / guarded updates
-- [ ] Idempotency key for checkout
-- [ ] Order history and order detail endpoints
-- [ ] Order lifecycle and cancellation rules
-- [ ] Concurrency tests proving no overselling
+- [x] Atomic checkout transaction
+- [x] Immutable order-item snapshots (SKU, name and price)
+- [x] Stock reservation with sorted row-level locks
+- [x] Idempotency key for checkout
+- [x] Customer order history and order detail endpoints
+- [x] Pending-order cancellation with inventory release
+- [x] Inventory movement audit ledger
+- [x] Automatic 30-minute order expiration and stock release
+- [x] Unit tests for checkout, idempotency, stock and expiration
+- [ ] PostgreSQL integration tests for migrations and rollback
+- [ ] Concurrency tests proving no overselling and no duplicate checkout
 
 ## Iteration 4 — Payment simulation and hardening
 
 - [ ] Payment provider interface and deterministic fake provider
 - [ ] Payment attempt records; no card data storage
-- [ ] Payment failure / retry handling
-- [ ] API rate limiting and security tests
+- [ ] Payment failure / retry handling and order PAID transition
+- [ ] Security and authorization integration tests
 - [ ] OpenAPI examples, Newman/Postman collection and portfolio docs
 
 ## Iteration 5 — Operational quality

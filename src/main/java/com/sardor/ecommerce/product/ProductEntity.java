@@ -1,5 +1,6 @@
 package com.sardor.ecommerce.product;
 
+import com.sardor.ecommerce.common.ConflictException;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -62,11 +63,31 @@ public class ProductEntity {
     }
 
     public void update(String name, String description, String category, BigDecimal price, int stock) {
+        if (stock < 0) {
+            throw new IllegalArgumentException("stock must be zero or greater");
+        }
         this.name = name.trim();
         this.description = description;
         this.category = category.trim();
         this.price = price;
         this.stock = stock;
+    }
+
+    public void reserveStock(int quantity) {
+        if (!active) {
+            throw new ConflictException("Product is not available");
+        }
+        if (quantity <= 0 || stock < quantity) {
+            throw new ConflictException("Insufficient stock for product " + sku);
+        }
+        stock -= quantity;
+    }
+
+    public void releaseStock(int quantity) {
+        if (quantity <= 0) {
+            throw new IllegalArgumentException("quantity must be positive");
+        }
+        stock = Math.addExact(stock, quantity);
     }
 
     public void deactivate() {
