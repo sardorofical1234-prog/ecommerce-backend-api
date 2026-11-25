@@ -14,6 +14,7 @@ The application is a **modular monolith**, not a collection of prematurely separ
 | `order` | Checkout, immutable order-item snapshots, order state and expiration | Implemented |
 | `inventory` | Stock reservation, release and movement audit trail | Implemented |
 | `payment` | Provider abstraction, payment attempts and simulated provider | Implemented |
+| `operations` | Health probes, metrics and request rate limiting | Implemented |
 
 ## Cart behavior and invariants
 
@@ -45,6 +46,16 @@ The application is a **modular monolith**, not a collection of prematurely separ
 5. A successful attempt changes the order to `PAID`. Inventory remains deducted because the sale is now complete.
 6. Payment attempts are visible only to the customer who owns the order.
 7. The current provider is a local fake implementation. Replacing it with a real gateway would require provider-side idempotency, signed webhook validation, timeout handling and reconciliation.
+
+## Reliability and operations
+
+- Testcontainers integration tests launch a clean PostgreSQL 17 instance and run all Flyway migrations before application startup.
+- The API test suite covers a full customer checkout/payment flow and verifies the resulting stock, order, payment attempt and inventory audit rows in PostgreSQL.
+- A concurrency test runs two independent customer checkouts against one remaining unit. Exactly one transaction may reserve it.
+- The fixed-window limiter uses a bounded Caffeine cache and keys request counters by remote IP plus endpoint group.
+- Authentication, checkout and payment creation are rate limited; read-only catalogue/order routes are not.
+- The limiter is process-local. Multiple instances need a shared Redis implementation.
+- Actuator exposes health, liveness, readiness and metrics endpoints. Only health probe endpoints are public; metrics remain authenticated.
 
 ## Security
 

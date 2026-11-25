@@ -34,6 +34,31 @@ app:
     email: ${BOOTSTRAP_ADMIN_EMAIL:}
     password: ${BOOTSTRAP_ADMIN_PASSWORD:}
     full-name: ${BOOTSTRAP_ADMIN_FULL_NAME:Store Administrator}
+  rate-limit:
+    enabled: ${RATE_LIMIT_ENABLED:true}
+    window: 1m
+    auth-requests: 20
+    checkout-requests: 10
+    payment-requests: 10
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+      group:
+        readiness:
+          include: readinessState,db
+        liveness:
+          include: livenessState
+  info:
+    env:
+      enabled: true
 
 springdoc:
   swagger-ui:

@@ -7,14 +7,14 @@ A portfolio-grade e-commerce REST API built as a **modular monolith** with Java 
 ## Technology
 
 - Java 21
-- Spring Boot 4.1.3 / Spring MVC
+- Spring Boot 4.1.3 / Spring MVC / Actuator
 - Spring Security 7 / JWT (HS256)
 - Spring Data JPA / Hibernate
 - PostgreSQL 17 / Flyway
 - Bean Validation
 - Springdoc OpenAPI / Swagger UI
 - Maven, Docker, Docker Compose, GitHub Actions
-- JUnit 5 and Mockito
+- JUnit 5, Mockito and Testcontainers 2.0
 
 ## Implemented features
 
@@ -69,6 +69,14 @@ A portfolio-grade e-commerce REST API built as a **modular monolith** with Java 
 - Order row locking prevents a second successful charge on an already-paid order
 - Customer can view payment-attempt history for their own order
 
+### Reliability and operations
+
+- PostgreSQL integration tests use Testcontainers and the real Flyway migration chain
+- Parallel checkout test verifies two customers cannot buy the last inventory unit
+- Security integration tests verify unauthenticated and wrong-role access is rejected
+- Fixed-window IP rate limiting on registration/login, checkout and payment creation
+- Actuator health, liveness, readiness and metrics endpoints
+
 ## Run with Docker Compose
 
 Prerequisites: Docker Engine / Docker Desktop with Compose v2.
@@ -108,20 +116,20 @@ docker compose down
 
 ## Run tests
 
-With Java 21 and Maven installed:
+With Java 21, Maven and a working Docker Engine available:
 
 ```bash
 mvn clean verify
 ```
 
-The unit suite covers authentication, product-catalogue behavior, cart operations, checkout idempotency, inventory reservation, order expiration and simulated payment outcomes. PostgreSQL integration and concurrency tests are still planned.
+Testcontainers starts an isolated PostgreSQL 17 container for the full application integration tests. Docker is required for the complete test suite. Unit tests cover authentication, product catalogue, cart operations, checkout idempotency, inventory reservation, order expiration, payment outcomes and rate limiting.
 
 ## API overview
 
 | Method | Endpoint | Access | Description |
 |---|---|---|---|
-| `POST` | `/api/v1/auth/register` | Public | Register a customer |
-| `POST` | `/api/v1/auth/login` | Public | Get a JWT access token |
+| `POST` | `/api/v1/auth/register` | Public, rate limited | Register a customer |
+| `POST` | `/api/v1/auth/login` | Public, rate limited | Get a JWT access token |
 | `GET` | `/api/v1/users/me` | Authenticated | Current user and roles |
 | `GET` | `/api/v1/products` | Public | Search / paginate active products |
 | `GET` | `/api/v1/products/{id}` | Public | Get active product details |
@@ -132,12 +140,16 @@ The unit suite covers authentication, product-catalogue behavior, cart operation
 | `POST` | `/api/v1/cart/items` | Customer | Add a product / increase quantity |
 | `PUT` | `/api/v1/cart/items/{productId}` | Customer | Set item quantity |
 | `DELETE` | `/api/v1/cart/items/{productId}` | Customer | Remove item |
-| `POST` | `/api/v1/checkout` | Customer | Create order and reserve stock |
+| `POST` | `/api/v1/checkout` | Customer, rate limited | Create order and reserve stock |
 | `GET` | `/api/v1/orders` | Customer | List own recent orders |
 | `GET` | `/api/v1/orders/{orderId}` | Customer | Get own order details |
 | `POST` | `/api/v1/orders/{orderId}/cancel` | Customer | Cancel pending order and release stock |
-| `POST` | `/api/v1/orders/{orderId}/payments` | Customer | Run a simulated payment attempt |
+| `POST` | `/api/v1/orders/{orderId}/payments` | Customer, rate limited | Run a simulated payment attempt |
 | `GET` | `/api/v1/orders/{orderId}/payments` | Customer | List own payment attempts |
+| `GET` | `/actuator/health` | Public | Application health |
+| `GET` | `/actuator/health/liveness` | Public | Liveness probe |
+| `GET` | `/actuator/health/readiness` | Public | Readiness probe |
+| `GET` | `/actuator/metrics` | Authenticated | Application metrics |
 
 ### Example: register
 
@@ -190,24 +202,14 @@ Content-Type: application/json
 
 For a simulated decline, use `"scenario": "DECLINE"` and a new idempotency key. Reusing an old key returns the original result even if a different scenario is sent. A successful result marks the order `PAID`; a declined result leaves it `PENDING_PAYMENT` for another attempt.
 
-### Example: create a product
+## Rate limiting
 
-```http
-POST /api/v1/admin/products
-Authorization: Bearer <admin-access-token>
-Content-Type: application/json
+The in-memory fixed-window limiter applies per remote IP address:
+- Authentication endpoints: 20 POST requests per minute
+- Checkout: 10 POST requests per minute
+- Payment creation: 10 POST requests per minute
 
-{
-  "sku": "KB-100",
-  "name": "Mechanical Keyboard",
-  "description": "Hot-swappable mechanical keyboard",
-  "category": "Accessories",
-  "price": 79.90,
-  "stock": 25
-}
-```
-
-Use the admin account created by the optional bootstrap process to call admin endpoints.
+A rejected request returns HTTP `429` and a `Retry-After` header. Configure `RATE_LIMIT_ENABLED=false` to disable it or override `app.rate-limit.*` settings. This limiter is local to one application instance. For multi-instance production deployments, replace it with a shared Redis-backed limiter and configure the trusted reverse proxy so client IP addresses cannot be spoofed.
 
 ## Database migrations
 
@@ -223,7 +225,7 @@ Flyway applies versioned SQL migrations from `src/main/resources/db/migration`. 
 - Order-item prices are historical snapshots; later product edits do not change an existing order.
 - Payment attempts are scoped to the order owner and protected by an order row lock.
 - The simulated provider only supports test scenarios. It is not a real payment gateway and must not be used to collect card data.
-- Payment provider calls are currently local and deterministic. A real gateway integration would need provider-side idempotency, webhook signature verification and reconciliation.
+- Payment provider calls are currently local and deterministic. A real gateway integration would need provider-side idempotency, webhook signature verification, outbox/transaction coordination and reconciliation.
 
 ## Project structure
 
@@ -232,7 +234,7 @@ src/main/java/com/sardor/ecommerce/
 ├── auth/       # registration and login
 ├── cart/       # customer shopping carts
 ├── common/     # API errors and domain exceptions
-├── config/     # OpenAPI and optional bootstrap admin
+├── config/     # OpenAPI, admin bootstrap and rate limiting
 ├── inventory/  # stock movement audit ledger
 ├── order/      # checkout, order history, cancellation, expiration
 ├── payment/    # provider abstraction and simulated payment attempts

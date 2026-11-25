@@ -19,7 +19,7 @@
 - [x] Prevent cross-customer cart access by deriving owner from JWT
 - [x] Serialize cart creation and mutations using database row locks
 - [x] Unit tests for cart operations
-- [ ] Integration tests against PostgreSQL/Testcontainers
+- [x] PostgreSQL integration coverage of Flyway migrations
 
 ## Iteration 3 — Checkout, orders and inventory
 
@@ -32,8 +32,8 @@
 - [x] Inventory movement audit ledger
 - [x] Automatic 30-minute order expiration and stock release
 - [x] Unit tests for checkout, idempotency, stock and expiration
-- [ ] PostgreSQL integration tests for migrations and rollback
-- [ ] Concurrency tests proving no overselling and no duplicate checkout
+- [x] PostgreSQL integration test for two-customer last-unit race
+- [ ] Additional rollback/failure-injection cases
 
 ## Iteration 4 — Payment simulation and hardening
 
@@ -42,13 +42,16 @@
 - [x] Payment failure / retry handling and order PAID transition
 - [x] Payment idempotency and order-level locking
 - [x] Customer payment history endpoint
-- [ ] Security and authorization integration tests
-- [ ] OpenAPI examples, Newman/Postman collection and portfolio docs
+- [x] PostgreSQL end-to-end payment integration test
+- [x] Basic role-based API security integration tests
 - [ ] Provider-side idempotency, webhook validation and reconciliation (required before a real provider)
 
 ## Iteration 5 — Operational quality
 
+- [x] In-memory IP rate limiting for auth, checkout and payment routes
+- [x] Health, liveness and readiness endpoints
+- [x] Actuator metrics endpoint
+- [ ] Redis-backed rate limiting for multi-instance deployments
 - [ ] Structured logs and correlation IDs
-- [ ] Health/readiness endpoints
-- [ ] Metrics and observability
+- [ ] Dashboard and external observability integration
 - [ ] Architecture decision records and deployment guide
