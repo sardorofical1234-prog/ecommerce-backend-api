@@ -1,0 +1,13 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: ecommerce-backend-api
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets:
+          - app:8080
+    basic_auth:
+      username: prometheus
+      password_file: /etc/prometheus/secrets/ecommerce-api-token

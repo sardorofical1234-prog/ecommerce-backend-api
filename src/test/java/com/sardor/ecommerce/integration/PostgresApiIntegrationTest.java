@@ -61,6 +61,7 @@ class PostgresApiIntegrationTest {
         registry.add("spring.data.redis.host", REDIS::getHost);
         registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379));
         registry.add("app.rate-limit.backend", () -> "redis");
+        registry.add("app.observability.prometheus-token", () -> "integration-metrics-secret");
         registry.add("app.security.jwt.secret-base64", () ->
                 Base64.getEncoder().encodeToString(
                         "integration-test-secret-which-is-exactly-32-bytes".substring(0, 32)
@@ -90,6 +91,20 @@ class PostgresApiIntegrationTest {
         assertEquals(1L, first.requestCount());
         assertEquals(2L, second.requestCount());
         assertTrue(second.remainingWindowMillis() > 0);
+    }
+
+    @Test
+    void prometheusEndpointRequiresDedicatedScraperCredentials() throws Exception {
+        mockMvc.perform(get("/actuator/prometheus"))
+                .andExpect(status().isForbidden());
+
+        String credentials = Base64.getEncoder().encodeToString(
+                "prometheus:integration-metrics-secret".getBytes(StandardCharsets.UTF_8));
+        mockMvc.perform(get("/actuator/prometheus")
+                        .header("Authorization", "Basic " + credentials))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.containsString("# HELP")));
     }
 
     @Test

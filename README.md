@@ -12,6 +12,7 @@ A portfolio-grade e-commerce REST API built as a **modular monolith** with Java 
 - Spring Data JPA / Hibernate
 - PostgreSQL 17 / Flyway
 - Redis 7 / Spring Data Redis (atomic distributed rate limiting)
+- Micrometer Prometheus registry for secured metrics scraping
 - Bean Validation
 - Springdoc OpenAPI / Swagger UI
 - Maven, Docker, Docker Compose, GitHub Actions
@@ -81,13 +82,14 @@ A portfolio-grade e-commerce REST API built as a **modular monolith** with Java 
 - Security integration tests verify unauthenticated and wrong-role access is rejected
 - Atomic Redis-backed fixed-window IP rate limiting on registration/login, checkout and payment creation; Caffeine memory mode remains available for single-instance runs
 - Actuator health, liveness, readiness and metrics endpoints
+- Prometheus scrape endpoint protected by dedicated HTTP Basic credentials; Grafana dashboard template included
 
 ## Run with Docker Compose
 
 Prerequisites: Docker Engine / Docker Desktop with Compose v2.
 
 1. Copy `.env.example` to `.env`.
-2. Set a strong local `DB_PASSWORD`.
+2. Set a strong local `DB_PASSWORD` and generate `METRICS_SCRAPE_TOKEN` with `openssl rand -hex 32` when a Prometheus scraper will be used.
 3. Generate a 32-byte JWT secret and paste its Base64 output into `JWT_SECRET_BASE64`:
 
    ```bash
@@ -111,7 +113,7 @@ Prerequisites: Docker Engine / Docker Desktop with Compose v2.
 
 6. Open Swagger UI: <http://localhost:8080/swagger-ui.html>
 
-The API listens on port `8080`; PostgreSQL is exposed to the host on port `5433`. The database uses a named Docker volume. **Do not run `docker compose down -v` if you need to preserve local database data.**
+The API listens on port `8080`; PostgreSQL is exposed to the host on port `5433`. Redis is private to the Compose network. The database uses a named Docker volume. **Do not run `docker compose down -v` if you need to preserve local database data.**
 
 To stop without deleting data:
 
@@ -167,6 +169,8 @@ The GitHub Actions pipeline runs this same script against a fresh Docker Compose
 | `GET` | `/actuator/health/liveness` | Public | Liveness probe |
 | `GET` | `/actuator/health/readiness` | Public | Readiness probe |
 | `GET` | `/actuator/metrics` | Authenticated | Application metrics |
+| `GET` | `/actuator/prometheus` | Basic auth (`prometheus` + `METRICS_SCRAPE_TOKEN`) | Prometheus scrape format |
+| `GET` | `/actuator/prometheus` | Prometheus scraper credentials | Prometheus text exposition |
 
 ### Example: register
 
@@ -262,6 +266,7 @@ src/main/java/com/sardor/ecommerce/
 
 ## Architecture, operations and roadmap
 
+- [Observability and Grafana setup](docs/observability.md)
 - [Architecture and invariants](docs/architecture.md)
 - [Production deployment guide](docs/deployment.md)
 - [Architecture decision records](docs/adr/)

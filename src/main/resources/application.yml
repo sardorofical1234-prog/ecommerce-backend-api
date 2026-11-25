@@ -50,12 +50,20 @@ app:
     auth-requests: 20
     checkout-requests: 10
     payment-requests: 10
+  observability:
+    prometheus-token: ${METRICS_SCRAPE_TOKEN:}
 
 management:
+  metrics:
+    distribution:
+      percentiles-histogram:
+        http:
+          server:
+            requests: true
   endpoints:
     web:
       exposure:
-        include: health,info,metrics
+        include: health,info,metrics,prometheus
   endpoint:
     health:
       probes:

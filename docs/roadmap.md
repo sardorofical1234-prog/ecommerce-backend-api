@@ -55,5 +55,7 @@
 - [x] Actuator metrics endpoint
 - [x] Redis-backed atomic fixed-window rate limiting for multi-instance deployments; Caffeine remains available for single-instance mode
 - [x] Logstash JSON structured console logs and validated/generated request correlation IDs
-- [ ] Dashboard and external observability integration (requires an external monitoring workspace and scrape credentials)
+- [x] Secured Prometheus scrape endpoint and Grafana dashboard template
+- [x] Prometheus scrape endpoint protected by dedicated scrape credentials and Grafana dashboard template
+- [ ] External monitoring workspace provisioning and alert delivery integration (requires external account/credentials)
 - [x] Architecture decision records and provider-neutral deployment guide

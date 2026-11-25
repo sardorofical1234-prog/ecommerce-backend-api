@@ -29,6 +29,7 @@ Required runtime configuration:
 | `REDIS_HOST`, `REDIS_PORT` | Private Redis endpoint |
 | `REDIS_PASSWORD` | Secret-manager value when the Redis service requires authentication |
 | `REDIS_SSL_ENABLED` | Enable TLS when required by the managed Redis endpoint |
+| `METRICS_SCRAPE_TOKEN` | High-entropy secret used by Prometheus Basic Auth; leave unset to disable scraping access |
 | `BOOTSTRAP_ADMIN_ENABLED` | Normally `false` after the initial administrative account is provisioned |
 | `SERVER_PORT` | Internal application port; do not expose it directly to the public internet |
 
@@ -78,7 +79,7 @@ Use the health probes for orchestration:
 
 The application emits Logstash-compatible JSON console logs. Each request has a validated or generated `X-Request-Id`; retain that identifier when shipping logs so a request can be followed across the reverse proxy and application.
 
-The current Actuator `/actuator/metrics` endpoint is authenticated. Restrict access to the operations network and authorized operators. Connect the endpoint to the selected monitoring platform using a secured service identity; do not make metrics or diagnostic endpoints publicly accessible. Define alerts for elevated 5xx/503/429 rates, latency, database pool saturation, Redis failures, JVM memory/GC pressure, failed migrations and container restarts.
+The current Actuator `/actuator/metrics` endpoint is authenticated. `/actuator/prometheus` requires HTTP Basic credentials with username `prometheus` and the `METRICS_SCRAPE_TOKEN` secret. Restrict the endpoint to the operations network and store the token in the monitoring platform's secret store; do not make metrics or diagnostic endpoints publicly accessible. See [observability setup](observability.md) for the Prometheus scrape and Grafana dashboard templates. Define alerts for elevated 5xx/503/429 rates, latency, database pool saturation, Redis failures, JVM memory/GC pressure, failed migrations and container restarts.
 
 A dashboard and provider-specific alert rules still need to be configured in the target monitoring workspace.
 

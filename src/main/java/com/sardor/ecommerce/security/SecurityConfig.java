@@ -6,8 +6,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.convert.converter.Converter;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
+import org.springframework.security.authorization.AuthorizationDecision;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -26,6 +28,8 @@ import org.springframework.security.web.SecurityFilterChain;
 
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.Base64;
 
 @Configuration
@@ -84,13 +88,17 @@ public class SecurityConfig {
     @Bean
     SecurityFilterChain securityFilterChain(
             HttpSecurity http,
-            Converter<Jwt, ? extends AbstractAuthenticationToken> jwtAuthenticationConverter
+            Converter<Jwt, ? extends AbstractAuthenticationToken> jwtAuthenticationConverter,
+            @Value("${app.observability.prometheus-token:}") String prometheusToken
     ) throws Exception {
         return http
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/api/v1/auth/**", "/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/actuator/prometheus").access((authentication, context) ->
+                                new AuthorizationDecision(isMetricsScrapeAuthorized(
+                                        context.getRequest().getHeader(HttpHeaders.AUTHORIZATION), prometheusToken)))
                         .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/**", "/actuator/info").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/products", "/api/v1/products/**").permitAll()
                         .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
@@ -100,5 +108,19 @@ public class SecurityConfig {
                 .oauth2ResourceServer(resourceServer -> resourceServer
                         .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter)))
                 .build();
+    }
+
+    private static boolean isMetricsScrapeAuthorized(String authorizationHeader, String expectedToken) {
+        if (expectedToken == null || expectedToken.isBlank()
+                || authorizationHeader == null || !authorizationHeader.startsWith("Basic ")) {
+            return false;
+        }
+        try {
+            byte[] provided = Base64.getDecoder().decode(authorizationHeader.substring(6));
+            byte[] expected = ("prometheus:" + expectedToken).getBytes(StandardCharsets.UTF_8);
+            return MessageDigest.isEqual(expected, provided);
+        } catch (IllegalArgumentException exception) {
+            return false;
+        }
     }
 }

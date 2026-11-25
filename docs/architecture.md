@@ -62,7 +62,8 @@ The application is a **modular monolith**, not a collection of prematurely separ
 - Authentication, checkout and payment creation are rate limited; read-only catalogue/order routes are not.
 - Redis counters are shared by multiple application instances; each increment and TTL initialization is atomic.
 - Redis is private to the Compose network. In production, use managed Redis with authentication/TLS. Redis failure is fail-closed and returns HTTP 503.
-- Actuator exposes health, liveness, readiness and metrics endpoints. Only health probe endpoints are public; metrics remain authenticated.
+- Prometheus exposition is authenticated with the dedicated `prometheus` Basic Auth identity, compared in constant time; the token is separate from user JWTs.
+- Actuator exposes health, liveness, readiness, metrics and Prometheus exposition endpoints. Health probes are public; general metrics remain authenticated; Prometheus exposition requires a dedicated static Basic Auth secret.
 - Console output uses Spring Boot's Logstash structured JSON format, which includes MDC correlation fields.
 
 ## Security
