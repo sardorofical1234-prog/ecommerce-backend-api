@@ -45,17 +45,22 @@ The application is a **modular monolith**, not a collection of prematurely separ
 4. A declined attempt leaves the order in `PENDING_PAYMENT`; a new idempotency key can be used for a later attempt while the payment window remains open.
 5. A successful attempt changes the order to `PAID`. Inventory remains deducted because the sale is now complete.
 6. Payment attempts are visible only to the customer who owns the order.
-7. The current provider is a local fake implementation. Replacing it with a real gateway would require provider-side idempotency, signed webhook validation, timeout handling and reconciliation.
+7. The provider interface receives the payment idempotency key; each real gateway adapter must forward it upstream so ambiguous retries cannot create duplicate charges.
+8. A provider timeout is surfaced as HTTP 502 and does not persist a false declined attempt. Clients must retry with the same idempotency key; a real gateway adapter must reconcile ambiguous provider outcomes before accepting a new attempt.
 
 ## Reliability and operations
 
 - Testcontainers integration tests launch a clean PostgreSQL 17 instance and run all Flyway migrations before application startup.
 - The API test suite covers a full customer checkout/payment flow and verifies the resulting stock, order, payment attempt and inventory audit rows in PostgreSQL.
+- A PostgreSQL trigger-based failure-injection test forces the inventory ledger write to fail and verifies the order insert, stock decrement and cart clear all roll back.
+- Payment unit tests cover provider timeout followed by a retry with the exact same idempotency key.
+- Each HTTP request receives a validated or generated `X-Request-Id`; the value is added to MDC and emitted in Logstash JSON logs.
 - A concurrency test runs two independent customer checkouts against one remaining unit. Exactly one transaction may reserve it.
 - The fixed-window limiter uses a bounded Caffeine cache and keys request counters by remote IP plus endpoint group.
 - Authentication, checkout and payment creation are rate limited; read-only catalogue/order routes are not.
 - The limiter is process-local. Multiple instances need a shared Redis implementation.
 - Actuator exposes health, liveness, readiness and metrics endpoints. Only health probe endpoints are public; metrics remain authenticated.
+- Console output uses Spring Boot's Logstash structured JSON format, which includes MDC correlation fields.
 
 ## Security
 

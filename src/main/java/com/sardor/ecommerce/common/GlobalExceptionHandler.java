@@ -37,6 +37,12 @@ public class GlobalExceptionHandler {
         return response(HttpStatus.BAD_REQUEST, "Request validation failed", errors);
     }
 
+    @ExceptionHandler(PaymentProviderException.class)
+    public ResponseEntity<ApiError> handlePaymentProvider(PaymentProviderException exception) {
+        return response(HttpStatus.BAD_GATEWAY,
+                "Payment provider is temporarily unavailable; retry with the same Idempotency-Key", Map.of());
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ApiError> handleIllegalArgument(IllegalArgumentException exception) {
         return response(HttpStatus.BAD_REQUEST, exception.getMessage(), Map.of());

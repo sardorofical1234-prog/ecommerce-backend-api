@@ -25,6 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -59,7 +60,7 @@ class PaymentServiceTest {
 
     @Test
     void approvedPaymentMarksOrderPaidAndPersistsAttempt() {
-        when(paymentProvider.charge(order.getId(), order.getTotalAmount(), PaymentScenario.APPROVE))
+        when(paymentProvider.charge(order.getId(), order.getTotalAmount(), IDEMPOTENCY_KEY, PaymentScenario.APPROVE))
                 .thenReturn(new PaymentProviderResult(true, "SIM-APPROVED-001", null, null));
         when(paymentAttemptRepository.saveAndFlush(any(PaymentAttemptEntity.class)))
                 .thenAnswer(invocation -> persistAttempt(invocation.getArgument(0)));
@@ -77,7 +78,7 @@ class PaymentServiceTest {
 
     @Test
     void declinedPaymentKeepsOrderPendingAndPersistsFailureDetails() {
-        when(paymentProvider.charge(order.getId(), order.getTotalAmount(), PaymentScenario.DECLINE))
+        when(paymentProvider.charge(order.getId(), order.getTotalAmount(), IDEMPOTENCY_KEY, PaymentScenario.DECLINE))
                 .thenReturn(new PaymentProviderResult(false, "SIM-DECLINED-001",
                         "SIMULATED_DECLINE", "The simulated payment was declined."));
         when(paymentAttemptRepository.saveAndFlush(any(PaymentAttemptEntity.class)))
@@ -94,10 +95,10 @@ class PaymentServiceTest {
 
     @Test
     void declinedAttemptCanBeFollowedBySuccessfulAttemptWithNewKey() {
-        when(paymentProvider.charge(order.getId(), order.getTotalAmount(), PaymentScenario.DECLINE))
+        when(paymentProvider.charge(order.getId(), order.getTotalAmount(), IDEMPOTENCY_KEY, PaymentScenario.DECLINE))
                 .thenReturn(new PaymentProviderResult(false, "SIM-DECLINED-002",
                         "SIMULATED_DECLINE", "The simulated payment was declined."));
-        when(paymentProvider.charge(order.getId(), order.getTotalAmount(), PaymentScenario.APPROVE))
+        when(paymentProvider.charge(order.getId(), order.getTotalAmount(), IDEMPOTENCY_KEY, PaymentScenario.APPROVE))
                 .thenReturn(new PaymentProviderResult(true, "SIM-APPROVED-002", null, null));
         when(paymentAttemptRepository.saveAndFlush(any(PaymentAttemptEntity.class)))
                 .thenAnswer(invocation -> persistAttempt(invocation.getArgument(0)));
@@ -131,6 +132,31 @@ class PaymentServiceTest {
         assertEquals("SIM-DECLINED-OLD", response.providerReference());
         verify(paymentProvider, never()).charge(any(), any(), any());
         verify(paymentAttemptRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void providerTimeoutCanBeRetriedWithTheSameIdempotencyKeyWithoutPersistingAFalseFailure() {
+        PaymentProviderResult approved = new PaymentProviderResult(true, "SIM-RETRY-001", null, null);
+        when(paymentProvider.charge(order.getId(), order.getTotalAmount(), IDEMPOTENCY_KEY,
+                PaymentScenario.APPROVE))
+                .thenThrow(new PaymentProviderException("Simulated provider timeout"))
+                .thenReturn(approved);
+        when(paymentAttemptRepository.saveAndFlush(any(PaymentAttemptEntity.class)))
+                .thenAnswer(invocation -> persistAttempt(invocation.getArgument(0)));
+
+        assertThrows(PaymentProviderException.class, () -> paymentService.pay(CUSTOMER_EMAIL, order.getId(),
+                IDEMPOTENCY_KEY, new PaymentRequest(PaymentScenario.APPROVE)));
+
+        assertEquals("PENDING_PAYMENT", order.getStatus().name());
+        verify(paymentAttemptRepository, never()).saveAndFlush(any(PaymentAttemptEntity.class));
+
+        PaymentResponse retry = paymentService.pay(CUSTOMER_EMAIL, order.getId(), IDEMPOTENCY_KEY,
+                new PaymentRequest(PaymentScenario.APPROVE));
+
+        assertEquals("SUCCEEDED", retry.status());
+        assertEquals("PAID", order.getStatus().name());
+        verify(paymentProvider, times(2)).charge(order.getId(), order.getTotalAmount(), IDEMPOTENCY_KEY,
+                PaymentScenario.APPROVE);
     }
 
     @Test

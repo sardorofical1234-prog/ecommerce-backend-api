@@ -50,7 +50,7 @@ public class PaymentService {
             throw new ConflictException("The payment window has expired; the order will be closed by the expiration job");
         }
 
-        PaymentProviderResult result = paymentProvider.charge(orderId, order.getTotalAmount(), request.scenario());
+        PaymentProviderResult result = paymentProvider.charge(orderId, order.getTotalAmount(), idempotencyKey, request.scenario());
         PaymentAttemptEntity attempt = new PaymentAttemptEntity(order, idempotencyKey,
                 order.getTotalAmount(), result);
         if (result.approved()) {

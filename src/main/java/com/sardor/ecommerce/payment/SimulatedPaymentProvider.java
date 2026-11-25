@@ -9,7 +9,9 @@ import java.util.UUID;
 public class SimulatedPaymentProvider implements PaymentProvider {
 
     @Override
-    public PaymentProviderResult charge(UUID orderId, BigDecimal amount, PaymentScenario scenario) {
+    public PaymentProviderResult charge(UUID orderId, BigDecimal amount, String idempotencyKey,
+                                         PaymentScenario scenario) {
+        // The demo provider is local; real provider adapters must send idempotencyKey upstream.
         String reference = "SIM-" + UUID.randomUUID();
         if (scenario == PaymentScenario.APPROVE) {
             return new PaymentProviderResult(true, reference, null, null);

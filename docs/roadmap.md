@@ -33,7 +33,7 @@
 - [x] Automatic 30-minute order expiration and stock release
 - [x] Unit tests for checkout, idempotency, stock and expiration
 - [x] PostgreSQL integration test for two-customer last-unit race
-- [ ] Additional rollback/failure-injection cases
+- [x] Checkout rollback/failure-injection case verifies order, stock, inventory ledger and cart atomicity
 - [x] Docker Compose HTTP smoke test covering admin/customer auth, catalogue, cart, checkout, payment, idempotency and persisted stock/order state
 
 ## Iteration 4 — Payment simulation and hardening
@@ -45,7 +45,8 @@
 - [x] Customer payment history endpoint
 - [x] PostgreSQL end-to-end payment integration test
 - [x] Basic role-based API security integration tests
-- [ ] Provider-side idempotency, webhook validation and reconciliation (required before a real provider)
+- [x] Provider timeout retry test reuses the same payment idempotency key and avoids persisting a false decline
+- [ ] Real provider adapter must forward provider-side idempotency, validate signed webhooks and reconcile ambiguous outcomes (required before a real provider)
 
 ## Iteration 5 — Operational quality
 
@@ -53,6 +54,6 @@
 - [x] Health, liveness and readiness endpoints
 - [x] Actuator metrics endpoint
 - [ ] Redis-backed rate limiting for multi-instance deployments
-- [ ] Structured logs and correlation IDs
+- [x] Logstash JSON structured console logs and validated/generated request correlation IDs
 - [ ] Dashboard and external observability integration
 - [ ] Architecture decision records and deployment guide

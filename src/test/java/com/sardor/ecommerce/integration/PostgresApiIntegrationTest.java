@@ -158,6 +158,64 @@ class PostgresApiIntegrationTest {
     }
 
     @Test
+    void checkoutFailureRollsBackOrderInventoryAndCartChanges() throws Exception {
+        String adminToken = login(ADMIN_EMAIL, ADMIN_PASSWORD);
+        String customerToken = registerCustomer(uniqueEmail("rollback"));
+        String productId = createProduct(adminToken, uniqueSku("ROLLBACK"), 5);
+        mockMvc.perform(post("/api/v1/cart/items")
+                        .header("Authorization", bearer(customerToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsBytes(new AddItemBody(productId, 2))))
+                .andExpect(status().isOk());
+
+        String idempotencyKey = "rollback-" + UUID.randomUUID();
+        jdbcTemplate.execute("DROP TRIGGER IF EXISTS trg_fail_reserved_inventory_for_test ON inventory_movements");
+        jdbcTemplate.execute("DROP FUNCTION IF EXISTS fail_reserved_inventory_for_test()");
+        jdbcTemplate.execute("""
+                CREATE FUNCTION fail_reserved_inventory_for_test() RETURNS trigger
+                LANGUAGE plpgsql AS $
+                BEGIN
+                    IF NEW.type = 'RESERVED' THEN
+                        RAISE EXCEPTION 'injected inventory ledger failure';
+                    END IF;
+                    RETURN NEW;
+                END;
+                $
+                """);
+        jdbcTemplate.execute("""
+                CREATE TRIGGER trg_fail_reserved_inventory_for_test
+                BEFORE INSERT ON inventory_movements
+                FOR EACH ROW EXECUTE FUNCTION fail_reserved_inventory_for_test()
+                """);
+
+        try {
+            int status = mockMvc.perform(post("/api/v1/checkout")
+                            .header("Authorization", bearer(customerToken))
+                            .header("Idempotency-Key", idempotencyKey))
+                    .andReturn().getResponse().getStatus();
+            assertTrue(status >= 500, "Injected persistence failure should fail the checkout request");
+
+            Integer remainingStock = jdbcTemplate.queryForObject(
+                    "select stock from products where id = ?", Integer.class, UUID.fromString(productId));
+            Integer ordersForKey = jdbcTemplate.queryForObject(
+                    "select count(*) from orders where idempotency_key = ?", Integer.class, idempotencyKey);
+            Integer reservationsForProduct = jdbcTemplate.queryForObject(
+                    "select count(*) from inventory_movements where product_id = ? and type = 'RESERVED'",
+                    Integer.class, UUID.fromString(productId));
+
+            assertEquals(5, remainingStock);
+            assertEquals(0, ordersForKey);
+            assertEquals(0, reservationsForProduct);
+            mockMvc.perform(get("/api/v1/cart").header("Authorization", bearer(customerToken)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.totalItems").value(2));
+        } finally {
+            jdbcTemplate.execute("DROP TRIGGER IF EXISTS trg_fail_reserved_inventory_for_test ON inventory_movements");
+            jdbcTemplate.execute("DROP FUNCTION IF EXISTS fail_reserved_inventory_for_test()");
+        }
+    }
+
+    @Test
     void securityScopesCustomerRoutesAndActuatorHealthIsPublic() throws Exception {
         String adminToken = login(ADMIN_EMAIL, ADMIN_PASSWORD);
         String customerToken = registerCustomer(uniqueEmail("security"));

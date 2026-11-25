@@ -63,6 +63,7 @@ A portfolio-grade e-commerce REST API built as a **modular monolith** with Java 
 - Payment provider interface with a deterministic scenario-based fake provider
 - Explicit demo scenarios: `APPROVE` and `DECLINE`; no card details or real credentials are accepted
 - Payment attempts are persisted with amount, outcome, provider reference and failure details
+- Provider adapters receive the same idempotency key so a real gateway can deduplicate retries after ambiguous timeouts
 - Payment requests require an `Idempotency-Key`; repeated keys return the original attempt
 - A successful attempt transitions the order from `PENDING_PAYMENT` to `PAID`
 - Failed attempts leave the order pending so a new idempotency key can retry
@@ -72,6 +73,9 @@ A portfolio-grade e-commerce REST API built as a **modular monolith** with Java 
 ### Reliability and operations
 
 - PostgreSQL integration tests use Testcontainers and the real Flyway migration chain
+- Checkout failure-injection coverage verifies order, stock, inventory ledger and cart are rolled back together
+- Provider timeout handling returns HTTP 502 and permits a retry with the same idempotency key
+- HTTP requests emit an `X-Request-Id`; Logstash JSON logs include the request correlation ID via MDC
 - Parallel checkout test verifies two customers cannot buy the last inventory unit
 - Security integration tests verify unauthenticated and wrong-role access is rejected
 - Fixed-window IP rate limiting on registration/login, checkout and payment creation
@@ -237,7 +241,7 @@ Flyway applies versioned SQL migrations from `src/main/resources/db/migration`. 
 - Order-item prices are historical snapshots; later product edits do not change an existing order.
 - Payment attempts are scoped to the order owner and protected by an order row lock.
 - The simulated provider only supports test scenarios. It is not a real payment gateway and must not be used to collect card data.
-- Payment provider calls are currently local and deterministic. A real gateway integration would need provider-side idempotency, webhook signature verification, outbox/transaction coordination and reconciliation.
+- Payment provider calls are currently local and deterministic. The provider interface receives the payment idempotency key; a real adapter must forward it to the gateway. A real gateway integration still needs webhook signature verification, outbox/transaction coordination, timeout-state reconciliation and settlement checks.
 
 ## Project structure
 
