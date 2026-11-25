@@ -124,6 +124,18 @@ mvn clean verify
 
 Testcontainers starts an isolated PostgreSQL 17 container for the full application integration tests. Docker is required for the complete test suite. Unit tests cover authentication, product catalogue, cart operations, checkout idempotency, inventory reservation, order expiration, payment outcomes and rate limiting.
 
+## Docker Compose smoke test
+
+The same end-to-end HTTP smoke test can be run against a locally started Compose stack. It logs in with the bootstrapped admin, creates a product and customer, adds the product to the cart, checks out, approves a simulated payment, and verifies persisted order/payment state and remaining stock. It also checks checkout and payment idempotency.
+
+1. Copy `.env.example` to `.env` and set a local database password and JWT secret.
+2. Enable the bootstrap admin and set a unique email and password (at least 12 characters).
+3. Start the stack with `docker compose up --build -d`.
+4. Run `./scripts/compose-smoke-test.sh` (requires `curl` and `jq`).
+5. Stop the stack with `docker compose down`; this preserves the database volume.
+
+The GitHub Actions pipeline runs this same script against a fresh Docker Compose environment after the Maven/Testcontainers verification.
+
 ## API overview
 
 | Method | Endpoint | Access | Description |

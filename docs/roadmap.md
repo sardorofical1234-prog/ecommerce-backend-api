@@ -34,6 +34,7 @@
 - [x] Unit tests for checkout, idempotency, stock and expiration
 - [x] PostgreSQL integration test for two-customer last-unit race
 - [ ] Additional rollback/failure-injection cases
+- [x] Docker Compose HTTP smoke test covering admin/customer auth, catalogue, cart, checkout, payment, idempotency and persisted stock/order state
 
 ## Iteration 4 — Payment simulation and hardening
 
