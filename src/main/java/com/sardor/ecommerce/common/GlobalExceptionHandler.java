@@ -2,6 +2,7 @@ package com.sardor.ecommerce.common;
 
 import com.sardor.ecommerce.payment.PaymentProviderException;
 
+import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -53,6 +54,12 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ApiError> handleDataIntegrity(DataIntegrityViolationException exception) {
         return response(HttpStatus.CONFLICT, "A resource with the same unique value already exists", Map.of());
+    }
+
+    @ExceptionHandler(DataAccessException.class)
+    public ResponseEntity<ApiError> handlePersistenceFailure(DataAccessException exception) {
+        return response(HttpStatus.INTERNAL_SERVER_ERROR,
+                "A database operation failed; the transaction was rolled back", Map.of());
     }
 
     private ResponseEntity<ApiError> response(HttpStatus status, String message, Map<String, String> errors) {
