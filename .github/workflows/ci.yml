@@ -36,7 +36,7 @@ jobs:
             echo "BOOTSTRAP_ADMIN_ENABLED=true"
             echo "BOOTSTRAP_ADMIN_EMAIL=smoke-admin@example.com"
             echo "BOOTSTRAP_ADMIN_PASSWORD=smoke-admin-password-2026"
-            echo "BOOTSTRAP_ADMIN_FULL_NAME=Compose Smoke Admin"
+            echo 'BOOTSTRAP_ADMIN_FULL_NAME="Compose Smoke Admin"'
           } > .env
       - name: Build and start Docker Compose services
         run: docker compose up --build -d
