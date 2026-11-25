@@ -10,12 +10,13 @@ public record OrderResponse(
         BigDecimal totalAmount,
         Instant createdAt,
         Instant expiresAt,
+        Instant paidAt,
         Instant closedAt,
         List<OrderItemResponse> items
 ) {
     static OrderResponse from(OrderEntity order) {
         return new OrderResponse(order.getId().toString(), order.getStatus().name(), order.getTotalAmount(),
-                order.getCreatedAt(), order.getExpiresAt(), order.getClosedAt(),
+                order.getCreatedAt(), order.getExpiresAt(), order.getPaidAt(), order.getClosedAt(),
                 order.getItems().stream().map(OrderItemResponse::from).toList());
     }
 }

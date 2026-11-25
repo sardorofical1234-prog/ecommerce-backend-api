@@ -56,6 +56,9 @@ public class OrderEntity {
     @Column(name = "expires_at", nullable = false, updatable = false)
     private Instant expiresAt;
 
+    @Column(name = "paid_at")
+    private Instant paidAt;
+
     @Column(name = "closed_at")
     private Instant closedAt;
 
@@ -75,6 +78,17 @@ public class OrderEntity {
 
     public void addItem(OrderItemEntity item) {
         items.add(item);
+    }
+
+    public void markPaid() {
+        if (status != OrderStatus.PENDING_PAYMENT) {
+            throw new IllegalStateException("Only pending-payment orders can be marked as paid");
+        }
+        if (expiresAt == null || !expiresAt.isAfter(Instant.now())) {
+            throw new IllegalStateException("The payment window has expired");
+        }
+        status = OrderStatus.PAID;
+        paidAt = Instant.now();
     }
 
     public void cancel() {
@@ -107,6 +121,7 @@ public class OrderEntity {
     public BigDecimal getTotalAmount() { return totalAmount; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getExpiresAt() { return expiresAt; }
+    public Instant getPaidAt() { return paidAt; }
     public Instant getClosedAt() { return closedAt; }
     public List<OrderItemEntity> getItems() { return items; }
 }

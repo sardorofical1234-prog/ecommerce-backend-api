@@ -2,7 +2,7 @@
 
 A portfolio-grade e-commerce REST API built as a **modular monolith** with Java 21, Spring Boot 4.1.3 and PostgreSQL 17.
 
-> Current scope: customer authentication, product catalogue, shopping cart, checkout, order history and inventory reservation. Payment processing is not implemented; orders remain pending payment until cancelled or expired.
+> Current scope: customer authentication, product catalogue, shopping cart, checkout, order history, inventory reservation and simulated payment. The payment provider is intentionally fake: this project does not process real payments or store card data.
 
 ## Technology
 
@@ -57,7 +57,17 @@ A portfolio-grade e-commerce REST API built as a **modular monolith** with Java 
 - Customers can view their own order history and details
 - Customer cancellation restores stock exactly once
 - Pending orders expire after 30 minutes; a scheduled job releases their reserved stock
-- Order records use `PENDING_PAYMENT`, `CANCELLED` and `EXPIRED` states
+
+### Simulated payment
+
+- Payment provider interface with a deterministic scenario-based fake provider
+- Explicit demo scenarios: `APPROVE` and `DECLINE`; no card details or real credentials are accepted
+- Payment attempts are persisted with amount, outcome, provider reference and failure details
+- Payment requests require an `Idempotency-Key`; repeated keys return the original attempt
+- A successful attempt transitions the order from `PENDING_PAYMENT` to `PAID`
+- Failed attempts leave the order pending so a new idempotency key can retry
+- Order row locking prevents a second successful charge on an already-paid order
+- Customer can view payment-attempt history for their own order
 
 ## Run with Docker Compose
 
@@ -104,7 +114,7 @@ With Java 21 and Maven installed:
 mvn clean verify
 ```
 
-The unit suite covers authentication, product-catalogue behavior, cart operations, checkout idempotency, inventory reservation and order expiration. PostgreSQL integration and concurrency tests are still planned.
+The unit suite covers authentication, product-catalogue behavior, cart operations, checkout idempotency, inventory reservation, order expiration and simulated payment outcomes. PostgreSQL integration and concurrency tests are still planned.
 
 ## API overview
 
@@ -126,6 +136,8 @@ The unit suite covers authentication, product-catalogue behavior, cart operation
 | `GET` | `/api/v1/orders` | Customer | List own recent orders |
 | `GET` | `/api/v1/orders/{orderId}` | Customer | Get own order details |
 | `POST` | `/api/v1/orders/{orderId}/cancel` | Customer | Cancel pending order and release stock |
+| `POST` | `/api/v1/orders/{orderId}/payments` | Customer | Run a simulated payment attempt |
+| `GET` | `/api/v1/orders/{orderId}/payments` | Customer | List own payment attempts |
 
 ### Example: register
 
@@ -163,6 +175,21 @@ Idempotency-Key: checkout-2026-001
 
 Send a unique key for each distinct checkout attempt. Reuse the same key when retrying the same request after a timeout. The response contains the order ID, status, expiration time, item snapshots and server-calculated total. Stock is reserved immediately; the payment window is 30 minutes.
 
+### Example: approve a simulated payment
+
+```http
+POST /api/v1/orders/<order-id>/payments
+Authorization: Bearer <customer-access-token>
+Idempotency-Key: payment-attempt-001
+Content-Type: application/json
+
+{
+  "scenario": "APPROVE"
+}
+```
+
+For a simulated decline, use `"scenario": "DECLINE"` and a new idempotency key. Reusing an old key returns the original result even if a different scenario is sent. A successful result marks the order `PAID`; a declined result leaves it `PENDING_PAYMENT` for another attempt.
+
 ### Example: create a product
 
 ```http
@@ -194,9 +221,9 @@ Flyway applies versioned SQL migrations from `src/main/resources/db/migration`. 
 - Stock reservation, order creation, inventory movements and cart clearing execute in one transaction.
 - Checkout locks product rows in a deterministic order to reduce deadlock risk and prevent overselling.
 - Order-item prices are historical snapshots; later product edits do not change an existing order.
-- Inventory is not reserved when items are added to a cart.
-- Expiration currently releases stock after 30 minutes. Payment processing and the `PAID` state will be introduced with the simulated payment module.
-- The payment module will be a simulated provider; this project will not collect or store real card data.
+- Payment attempts are scoped to the order owner and protected by an order row lock.
+- The simulated provider only supports test scenarios. It is not a real payment gateway and must not be used to collect card data.
+- Payment provider calls are currently local and deterministic. A real gateway integration would need provider-side idempotency, webhook signature verification and reconciliation.
 
 ## Project structure
 
@@ -208,6 +235,7 @@ src/main/java/com/sardor/ecommerce/
 ├── config/     # OpenAPI and optional bootstrap admin
 ├── inventory/  # stock movement audit ledger
 ├── order/      # checkout, order history, cancellation, expiration
+├── payment/    # provider abstraction and simulated payment attempts
 ├── product/    # public catalogue and admin product management
 ├── security/   # stateless JWT authentication and authorization
 └── user/       # customer/admin identity

@@ -37,11 +37,14 @@
 
 ## Iteration 4 — Payment simulation and hardening
 
-- [ ] Payment provider interface and deterministic fake provider
-- [ ] Payment attempt records; no card data storage
-- [ ] Payment failure / retry handling and order PAID transition
+- [x] Payment provider interface and deterministic fake provider
+- [x] Payment attempt records; no card data storage
+- [x] Payment failure / retry handling and order PAID transition
+- [x] Payment idempotency and order-level locking
+- [x] Customer payment history endpoint
 - [ ] Security and authorization integration tests
 - [ ] OpenAPI examples, Newman/Postman collection and portfolio docs
+- [ ] Provider-side idempotency, webhook validation and reconciliation (required before a real provider)
 
 ## Iteration 5 — Operational quality
 

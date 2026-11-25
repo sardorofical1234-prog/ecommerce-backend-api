@@ -13,7 +13,7 @@ The application is a **modular monolith**, not a collection of prematurely separ
 | `cart` | One customer cart, cart items and estimated totals | Implemented |
 | `order` | Checkout, immutable order-item snapshots, order state and expiration | Implemented |
 | `inventory` | Stock reservation, release and movement audit trail | Implemented |
-| `payment` | Payment-provider abstraction and safe simulated provider | Planned |
+| `payment` | Provider abstraction, payment attempts and simulated provider | Implemented |
 
 ## Cart behavior and invariants
 
@@ -36,12 +36,15 @@ The application is a **modular monolith**, not a collection of prematurely separ
 7. The expiration worker locks eligible pending orders before releasing stock. Inventory release and order state transition happen in the same transaction.
 8. Inventory movements are append-only records with movement type, quantity and resulting stock. The current product stock remains the operational balance.
 
-## Important invariants for payment
+## Payment invariants
 
-1. A future payment module must not trust totals or payment status supplied by the client.
-2. A payment retry requires a provider idempotency key; payment attempt records must be linked to an order.
-3. Payment success must lock the order and verify it is still pending and unexpired before transitioning to `PAID`.
-4. Payment processing is simulated in this portfolio project. No real card numbers or payment credentials are stored.
+1. The payment API accepts only a demo scenario (`APPROVE` / `DECLINE`), not card numbers, CVVs, bank credentials or client-calculated totals.
+2. Each attempt stores the order, server-calculated amount, provider reference, result and optional failure details.
+3. A unique `(order_id, idempotency_key)` constraint and order-level pessimistic lock ensure a retry returns the original attempt and prevents a second successful attempt for an already-paid order.
+4. A declined attempt leaves the order in `PENDING_PAYMENT`; a new idempotency key can be used for a later attempt while the payment window remains open.
+5. A successful attempt changes the order to `PAID`. Inventory remains deducted because the sale is now complete.
+6. Payment attempts are visible only to the customer who owns the order.
+7. The current provider is a local fake implementation. Replacing it with a real gateway would require provider-side idempotency, signed webhook validation, timeout handling and reconciliation.
 
 ## Security
 
@@ -50,7 +53,7 @@ The application is a **modular monolith**, not a collection of prematurely separ
 - JWT signing material is provided only through the environment and must decode to at least 32 bytes.
 - Public registration always creates a `CUSTOMER`; admin creation is an explicit bootstrap-only environment option.
 - Product writes are restricted to `ADMIN`; product reads are public.
-- Cart, checkout and order endpoints are restricted to the `CUSTOMER` role and scope data to the JWT subject.
+- Cart, checkout, order and payment endpoints are restricted to the `CUSTOMER` role and scope data to the JWT subject.
 - Product removal is a soft deactivation, preserving historical references for future orders.
 
 ## Persistence
