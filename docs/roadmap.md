@@ -12,10 +12,13 @@
 
 ## Iteration 2 — Shopping cart
 
-- [ ] One active cart per customer
-- [ ] Add, update and remove cart items
-- [ ] Recalculate price and availability from the database
-- [ ] Prevent cross-customer cart access
+- [x] One cart per customer
+- [x] Add, update and remove cart items
+- [x] Recalculate estimated total from current product prices
+- [x] Check active state and available stock when adding/updating items
+- [x] Prevent cross-customer cart access by deriving owner from JWT
+- [x] Serialize cart creation and mutations using database row locks
+- [x] Unit tests for cart operations
 - [ ] Integration tests against PostgreSQL/Testcontainers
 
 ## Iteration 3 — Checkout, orders and inventory
