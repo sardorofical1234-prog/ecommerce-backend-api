@@ -68,7 +68,7 @@ public class RateLimitInterceptor implements HandlerInterceptor {
             if (bucket.requests >= limit) {
                 long remainingNanos = window.toNanos() - (now - bucket.windowStartedAtNanos);
                 long retryAfterSeconds = Math.max(1, TimeUnit.NANOSECONDS.toSeconds(remainingNanos) + 1);
-                response.setStatus(HttpServletResponse.SC_TOO_MANY_REQUESTS);
+                response.setStatus(429);
                 response.setHeader(HttpHeaders.RETRY_AFTER, Long.toString(retryAfterSeconds));
                 response.setHeader("X-RateLimit-Limit", Integer.toString(limit));
                 response.setHeader("X-RateLimit-Remaining", "0");
