@@ -73,7 +73,7 @@ class PaymentServiceTest {
         assertEquals("SIM-APPROVED-001", response.providerReference());
         assertEquals("PAID", order.getStatus().name());
         assertNotNull(order.getPaidAt());
-        verify(paymentProvider).charge(order.getId(), new BigDecimal("159.80"), PaymentScenario.APPROVE);
+        verify(paymentProvider).charge(order.getId(), new BigDecimal("159.80"), IDEMPOTENCY_KEY, PaymentScenario.APPROVE);
     }
 
     @Test
@@ -98,7 +98,7 @@ class PaymentServiceTest {
         when(paymentProvider.charge(order.getId(), order.getTotalAmount(), IDEMPOTENCY_KEY, PaymentScenario.DECLINE))
                 .thenReturn(new PaymentProviderResult(false, "SIM-DECLINED-002",
                         "SIMULATED_DECLINE", "The simulated payment was declined."));
-        when(paymentProvider.charge(order.getId(), order.getTotalAmount(), IDEMPOTENCY_KEY, PaymentScenario.APPROVE))
+        when(paymentProvider.charge(order.getId(), order.getTotalAmount(), "payment-attempt-002", PaymentScenario.APPROVE))
                 .thenReturn(new PaymentProviderResult(true, "SIM-APPROVED-002", null, null));
         when(paymentAttemptRepository.saveAndFlush(any(PaymentAttemptEntity.class)))
                 .thenAnswer(invocation -> persistAttempt(invocation.getArgument(0)));
@@ -130,7 +130,7 @@ class PaymentServiceTest {
 
         assertEquals("DECLINED", response.status());
         assertEquals("SIM-DECLINED-OLD", response.providerReference());
-        verify(paymentProvider, never()).charge(any(), any(), any());
+        verify(paymentProvider, never()).charge(any(), any(), any(), any());
         verify(paymentAttemptRepository, never()).saveAndFlush(any());
     }
 
@@ -166,7 +166,7 @@ class PaymentServiceTest {
         assertThrows(ConflictException.class, () -> paymentService.pay(CUSTOMER_EMAIL, order.getId(),
                 IDEMPOTENCY_KEY, new PaymentRequest(PaymentScenario.APPROVE)));
 
-        verify(paymentProvider, never()).charge(any(), any(), any());
+        verify(paymentProvider, never()).charge(any(), any(), any(), any());
         verify(paymentAttemptRepository, never()).saveAndFlush(any());
     }
 
@@ -177,7 +177,7 @@ class PaymentServiceTest {
         assertThrows(ConflictException.class, () -> paymentService.pay(CUSTOMER_EMAIL, order.getId(),
                 IDEMPOTENCY_KEY, new PaymentRequest(PaymentScenario.APPROVE)));
 
-        verify(paymentProvider, never()).charge(any(), any(), any());
+        verify(paymentProvider, never()).charge(any(), any(), any(), any());
         verify(paymentAttemptRepository, never()).saveAndFlush(any());
     }
 
