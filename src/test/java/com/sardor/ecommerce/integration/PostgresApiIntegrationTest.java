@@ -173,14 +173,14 @@ class PostgresApiIntegrationTest {
         jdbcTemplate.execute("DROP FUNCTION IF EXISTS fail_reserved_inventory_for_test()");
         jdbcTemplate.execute("""
                 CREATE FUNCTION fail_reserved_inventory_for_test() RETURNS trigger
-                LANGUAGE plpgsql AS $
+                LANGUAGE plpgsql AS '
                 BEGIN
-                    IF NEW.type = 'RESERVED' THEN
-                        RAISE EXCEPTION 'injected inventory ledger failure';
+                    IF NEW.type = ''RESERVED'' THEN
+                        RAISE EXCEPTION ''injected inventory ledger failure'';
                     END IF;
                     RETURN NEW;
                 END;
-                $
+                ';
                 """);
         jdbcTemplate.execute("""
                 CREATE TRIGGER trg_fail_reserved_inventory_for_test
