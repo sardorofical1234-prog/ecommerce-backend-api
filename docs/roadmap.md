@@ -59,3 +59,4 @@
 - [x] Prometheus scrape endpoint protected by dedicated scrape credentials and Grafana dashboard template
 - [ ] External monitoring workspace provisioning and alert delivery integration (requires external account/credentials)
 - [x] Architecture decision records and provider-neutral deployment guide
+- [x] Semantic-version release workflow publishes tested Docker images to GHCR after CI passes

@@ -84,6 +84,22 @@ A portfolio-grade e-commerce REST API built as a **modular monolith** with Java 
 - Actuator health, liveness, readiness and metrics endpoints
 - Prometheus scrape endpoint protected by dedicated HTTP Basic credentials; Grafana dashboard template included
 
+## Versioned container releases
+
+Pushing a semantic-version tag such as `v1.2.3` runs the full CI suite first (unit tests, PostgreSQL/Redis Testcontainers, Docker Compose build and HTTP smoke test). Only after CI passes does GitHub Actions publish the image to GitHub Container Registry:
+
+```bash
+git tag -a v1.2.3 -m "Release v1.2.3"
+git push origin v1.2.3
+```
+
+Published image references use the repository's lowercase name:
+- `ghcr.io/sardorofical1234-prog/ecommerce-backend-api:v1.2.3`
+- `ghcr.io/sardorofical1234-prog/ecommerce-backend-api:sha-<12-character-commit>`
+- Stable releases also update `latest`.
+
+The release workflow does not deploy to a cloud provider. After the first publication, review the container package visibility in GitHub Packages; make it public only when you intend anonymous image pulls. For production, deploy a digest-pinned image rather than relying on a movable tag.
+
 ## Run with Docker Compose
 
 Prerequisites: Docker Engine / Docker Desktop with Compose v2.

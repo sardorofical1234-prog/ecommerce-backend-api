@@ -2,6 +2,23 @@
 
 This document describes a provider-neutral deployment model. It is a checklist, not evidence that the application has already been deployed to a public cloud.
 
+## 0. Publish an immutable release image
+
+The CI workflow publishes a container image to GitHub Container Registry (GHCR) when a semantic-version tag is pushed. It runs the full test and Docker Compose smoke-test job before publishing.
+
+```bash
+git tag -a v1.2.3 -m "Release v1.2.3"
+git push origin v1.2.3
+```
+
+The resulting image is named:
+
+`ghcr.io/sardorofical1234-prog/ecommerce-backend-api:v1.2.3`
+
+A commit-addressed tag is also published as `sha-<12-character-commit>`; stable version tags additionally update `latest`. For production, resolve the published version to its registry digest and pin the deployment to that digest. Do not assume the image is publicly pullable: review GHCR package visibility and enable public access only deliberately.
+
+This pipeline publishes an image but does not create a cloud service, provision credentials, or deploy the application.
+
 ## 1. Recommended topology
 
 Use a private application network with these components:
