@@ -1,0 +1,40 @@
+spring:
+  application:
+    name: ecommerce-backend-api
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5433/ecommerce_db}
+    username: ${DB_USERNAME:ecommerce}
+    password: ${DB_PASSWORD:local-development-password}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+
+server:
+  port: ${SERVER_PORT:8080}
+  shutdown: graceful
+
+app:
+  security:
+    jwt:
+      issuer: ecommerce-backend-api
+      secret-base64: ${JWT_SECRET_BASE64:}
+      access-token-ttl: 15m
+  bootstrap-admin:
+    enabled: ${BOOTSTRAP_ADMIN_ENABLED:false}
+    email: ${BOOTSTRAP_ADMIN_EMAIL:}
+    password: ${BOOTSTRAP_ADMIN_PASSWORD:}
+    full-name: ${BOOTSTRAP_ADMIN_FULL_NAME:Store Administrator}
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
