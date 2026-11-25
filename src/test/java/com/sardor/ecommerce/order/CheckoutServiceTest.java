@@ -61,14 +61,12 @@ class CheckoutServiceTest {
         cart = new ShoppingCartEntity(customer);
         ReflectionTestUtils.setField(cart, "id", UUID.randomUUID());
         cart.addProduct(product, 2);
-
-        when(userRepository.findByEmailForUpdate(CUSTOMER_EMAIL)).thenReturn(Optional.of(customer));
     }
 
     @Test
     void checkoutCreatesOrderSnapshotsPricesReservesStockAndClearsCart() {
         arrangeNewCheckout();
-
+        when(productRepository.findAllByIdForUpdate(anyList())).thenReturn(List.of(product));
         when(orderRepository.saveAndFlush(any(OrderEntity.class))).thenAnswer(invocation -> {
             OrderEntity order = invocation.getArgument(0);
             ReflectionTestUtils.setField(order, "id", UUID.randomUUID());
@@ -92,6 +90,7 @@ class CheckoutServiceTest {
 
     @Test
     void checkoutWithSameIdempotencyKeyReturnsPreviousOrderWithoutReservingAgain() {
+        stubCustomerLock();
         OrderEntity previousOrder = new OrderEntity(customer, IDEMPOTENCY_KEY, new BigDecimal("159.80"));
         ReflectionTestUtils.setField(previousOrder, "id", UUID.randomUUID());
         ReflectionTestUtils.setField(previousOrder, "createdAt", Instant.now());
@@ -113,6 +112,7 @@ class CheckoutServiceTest {
     void checkoutRejectsInsufficientStockAndKeepsCart() {
         product.reserveStock(9);
         arrangeNewCheckout();
+        when(productRepository.findAllByIdForUpdate(anyList())).thenReturn(List.of(product));
 
         assertThrows(ConflictException.class,
                 () -> checkoutService.checkout(CUSTOMER_EMAIL, IDEMPOTENCY_KEY));
@@ -137,6 +137,7 @@ class CheckoutServiceTest {
 
     @Test
     void cancellationRestoresInventoryOnlyOnce() {
+        stubCustomerLock();
         OrderEntity order = createOrderWithItem();
         when(orderRepository.findByIdAndCustomerIdForUpdate(order.getId(), customer.getId()))
                 .thenReturn(Optional.of(order));
@@ -190,9 +191,13 @@ class CheckoutServiceTest {
     }
 
     private void arrangeNewCheckout() {
+        stubCustomerLock();
         when(orderRepository.findByCustomerIdAndIdempotencyKey(customer.getId(), IDEMPOTENCY_KEY))
                 .thenReturn(Optional.empty());
         when(cartRepository.findByUserIdForUpdate(customer.getId())).thenReturn(Optional.of(cart));
-        when(productRepository.findAllByIdForUpdate(anyList())).thenReturn(List.of(product));
+    }
+
+    private void stubCustomerLock() {
+        when(userRepository.findByEmailForUpdate(CUSTOMER_EMAIL)).thenReturn(Optional.of(customer));
     }
 }
