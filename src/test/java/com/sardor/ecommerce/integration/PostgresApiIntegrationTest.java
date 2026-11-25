@@ -96,7 +96,7 @@ class PostgresApiIntegrationTest {
     @Test
     void prometheusEndpointRequiresDedicatedScraperCredentials() throws Exception {
         mockMvc.perform(get("/actuator/prometheus"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
 
         String credentials = Base64.getEncoder().encodeToString(
                 "prometheus:integration-metrics-secret".getBytes(StandardCharsets.UTF_8));
